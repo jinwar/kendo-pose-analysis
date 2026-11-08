@@ -274,6 +274,17 @@ each frame panel. Body size and camera perspective are not normalized.
 Person A is the attacker in `20261108_120241.mp4`; Person B is the attacker in
 `20261108_120335.mp4`. The filename timestamps place A's recording 54 seconds earlier.
 
+## Six matched frame-by-frame figures
+
+Run `.venv/bin/python matched_strike_figures.py` after both individual analyses
+and averages exist. Open `outputs/matched_strike_figures/index.html`.
+The set contains exactly six 4×4 figures: five chronological strike pairs and
+one comparison of the five-strike averages. Every figure uses blue for A,
+orange for B, identical axes, solid shinai lines, and 16 panels ending at contact.
+Both A and B timestamps appear above each panel. PNG and SVG versions and a ZIP
+of the six figures are provided. The averaged shinai has schematic length;
+individual strikes retain their detected shaft segments.
+
 ## Re-create the environment
 
 The environment is already installed in `.venv`. For a fresh setup on a compatible
