@@ -97,6 +97,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--events',type=Path,default=ROOT/'strike_events.json')
     parser.add_argument('--output',type=Path,default=OUT)
+    parser.add_argument('--post-hit-frames',type=int,default=0)
     args=parser.parse_args();out=args.output
     out.mkdir(parents=True,exist_ok=True)
     config=json.loads(args.events.read_text())
@@ -104,7 +105,7 @@ def main():
     sequences=[]
     for event in config['strikes']:
         hit=event['contact_frame'];sequence=[]
-        for frame in range(hit-config['pre_hit_frames'],hit+1):
+        for frame in range(hit-config['pre_hit_frames'],hit+args.post_hit_frames+1):
             people={p['track_id']:p for p in raw[frame]['models']['rtmpose']['people']}
             sequence.append({'frame':frame,'strike':event['strike'],'offset_frames':frame-hit,
                 'relative_time_ms':1000*(raw[frame]['time_seconds']-raw[hit]['time_seconds']),
@@ -116,7 +117,8 @@ def main():
     cap=cv2.VideoCapture(str(ROOT/data['source']));lsd=cv2.createLineSegmentDetector(0)
     observations=[];thumbnails={};frame_index=0
     # Import only color values; the plotting module does not run inference.
-    from plot_strikes import FRAME_COLORS
+    from plot_strikes import plt
+    frame_colors=plt.get_cmap('turbo')(np.linspace(.06,.94,config['pre_hit_frames']+args.post_hit_frames+1))
     while True:
         ok,image=cap.read()
         if not ok:break
@@ -134,7 +136,7 @@ def main():
                 grip=np.array(row['receiver']['keypoints_xy'])[[9,10]].mean(axis=0)
                 record['receiver']=sharp_segments(image,grip,'receiver',lines)
             observations.append(record)
-            rgb=FRAME_COLORS[row['offset_frames']+15][:3];color=tuple(int(x*255) for x in rgb[::-1])
+            rgb=frame_colors[row['offset_frames']+config['pre_hit_frames']][:3];color=tuple(int(x*255) for x in rgb[::-1])
             canvas=image.copy();draw_segment(canvas,result,color)
             if record.get('receiver'):draw_segment(canvas,record['receiver'],(140,140,140))
             canvas=cv2.resize(canvas,(768,432))
@@ -145,7 +147,8 @@ def main():
         frame_index+=1
     cap.release()
     for strike,images in thumbnails.items():
-        sheet=np.vstack([np.hstack(images[j:j+4]) for j in range(0,16,4)])
+        padded=images+[np.zeros_like(images[0])]*((-len(images))%4)
+        sheet=np.vstack([np.hstack(padded[j:j+4]) for j in range(0,len(padded),4)])
         cv2.imwrite(str(review/f'strike_{strike}_all_frames.jpg'),sheet)
     counts=dict(Counter(r['attacker']['method'] for r in observations))
     result={'source':data['source'],'frame_count':len(observations),'counts':counts,
@@ -163,7 +166,7 @@ def main():
             q=r['attacker'];points=q['segment_xy'] or [[None,None],[None,None]]
             writer.writerow([r['strike'],r['frame'],r['relative_time_ms'],q['method'],*points[0],*points[1],q.get('angle_degrees'),q['quality_score']])
     print(counts,flush=True)
-    assert len(observations)==80
+    assert len(observations)==len(config['strikes'])*(config['pre_hit_frames']+args.post_hit_frames+1)
 
 
 if __name__=='__main__':main()
