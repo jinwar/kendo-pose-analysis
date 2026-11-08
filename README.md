@@ -256,6 +256,20 @@ phase-warped. The figures share pixel scale and receiver-contact hip origin, but
 are not corrected for body size or perspective. Do not interpret image distances
 as physical distances or differences as evidence of technique quality.
 
+## Compare individual strikes without averaging
+
+Run `.venv/bin/python compare_individual_strikes.py` after both individual strike
+analyses are generated. Open `outputs/strike_comparison/index.html`.
+
+The five chronological pairs (1 versus 1 through 5 versus 5) each have a
+side-by-side time-colored sequence and sixteen blue/orange overlays of the
+original observations. A five-row overview, PNG/SVG exports, and a JSON pairing
+and timestamp audit are included. Each strike uses one fixed translation to its
+receiver's contact hip; no poses are averaged or interpolated. Solid shinai lines
+use the original detected segments, including blur estimates, with no invented
+full weapon length. Matching timestamps are required to differ by at most 10 ms;
+actual times are printed separately for A and B in each frame panel.
+
 ## Re-create the environment
 
 The environment is already installed in `.venv`. For a fresh setup on a compatible

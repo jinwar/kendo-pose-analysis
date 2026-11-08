@@ -20,7 +20,7 @@ def build_index(root):
                    if (root/'strike_analysis/index.html').exists() else '')
     if (root/'average_strike/index.html').exists():
         strike_link += '<article><h2><a href="average_strike/index.html">Typical strike: average of five repetitions</a></h2><p>Contact-aligned mean poses, shinai orientation, and between-strike variation.</p></article>'
-    for folder,label in [('strike_analysis_second','Video 2: five strikes'),('average_strike_second','Video 2: average strike'),('average_comparison','Compare the two people’s average strikes')]:
+    for folder,label in [('strike_comparison','Compare individual strikes: 1 vs 1 through 5 vs 5'),('strike_analysis_second','Video 2: five strikes'),('average_strike_second','Video 2: average strike'),('average_comparison','Compare the two people’s average strikes')]:
         if (root/folder/'index.html').exists():
             strike_link += f'<article><h2><a href="{folder}/index.html">{label}</a></h2></article>'
     text='''<!doctype html><html lang="en"><meta charset="utf-8">
