@@ -18,6 +18,8 @@ def build_index(root):
                      f'<a href="{name}/comparison.mp4">Open video</a></p></article>')
     strike_link = ('<article><h2><a href="strike_analysis/index.html">RTMPose: five strikes aligned to contact</a></h2><p>Posture-only figures, one row per strike, with every consecutive frame leading up to contact.</p></article>'
                    if (root/'strike_analysis/index.html').exists() else '')
+    if (root/'average_strike/index.html').exists():
+        strike_link += '<article><h2><a href="average_strike/index.html">Typical strike: average of five repetitions</a></h2><p>Contact-aligned mean poses, shinai orientation, and between-strike variation.</p></article>'
     text='''<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Kendo video analysis</title>
 <style>body{font:16px system-ui;background:#101923;color:#e8eff5;max-width:1200px;margin:48px auto;padding:0 24px}

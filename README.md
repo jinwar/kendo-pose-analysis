@@ -203,6 +203,34 @@ the display threshold are hidden in the overlay but retained in raw output.
 - No shinai tracking, contact detection, strike classification, or ippon scoring
   is implemented. True pose/tracking accuracy requires manual annotations.
 
+## Average the five strikes
+
+After generating the individual strike plots, run `Average Strikes.command` or:
+
+```bash
+.venv/bin/python average_strikes.py
+```
+
+Open `outputs/average_strike/index.html` for the 16-frame mean overlay, each
+averaged frame with variation, and a comparison against the five original poses.
+PNG/SVG figures and JSON/CSV statistics are exported locally.
+
+Each strike is translated once to place the receiver's contact-frame hip midpoint
+at the origin. Matching pre-contact frames retain their actual timing; the script
+checks that their timestamp differences are at most 5 ms. There is no phase
+warping, scale normalization, or temporal smoothing. Joint means use confidence
+weights, exclude scores below 0.3, require at least three observations, and
+conservatively downweight distant estimates. The exact weights are saved in JSON.
+
+Shinai orientations use an axial circular mean, with blurred detections weighted
+at one quarter of clear detections (a heuristic). Drawn segments have a fixed
+schematic length, not measured tips. Dashed means all contributing estimates were
+blurred. Joint ellipses show weighted sample covariance with one-SD axes; shinai
+fans show angular RMS spread. These describe variation, not confidence intervals.
+Five repetitions cannot separate genuine technique variation from tracking error,
+and manual contact uncertainty of approximately one frame is not propagated.
+Averaged skeletons are not constrained to preserve anatomical bone lengths.
+
 ## Re-create the environment
 
 The environment is already installed in `.venv`. For a fresh setup on a compatible
