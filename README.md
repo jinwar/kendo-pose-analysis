@@ -261,22 +261,23 @@ as physical distances or differences as evidence of technique quality.
 After both individual strike analyses exist, run `Compare Strikes.command`, or:
 
 ```bash
-.venv/bin/python detect_shinai.py --post-hit-frames 6 --output outputs/strike_followthrough
-.venv/bin/python detect_shinai.py --events strike_events_second.json --post-hit-frames 6 --output outputs/strike_followthrough_second
+.venv/bin/python detect_shinai.py --post-hit-frames 15 --output outputs/strike_followthrough
+.venv/bin/python detect_shinai.py --events strike_events_second.json --post-hit-frames 15 --output outputs/strike_followthrough_second
 .venv/bin/python compare_individual_strikes.py
 ```
 
 Open `outputs/strike_comparison/index.html`. Each window includes 15 frames before
-contact, contact itself, and six frames (approximately 0.2 seconds) afterward.
+contact, contact itself, and fifteen frames (approximately 0.5 seconds) afterward.
 The receiver remains fixed at the contact-frame pose throughout the follow-through.
 
 The five chronological pairs (1 versus 1 through 5 versus 5) each have a
-side-by-side time-colored sequence and twenty-two blue/orange overlays of the
+side-by-side time-colored sequence and thirty-one blue/orange overlays of the
 original observations. A five-row overview, PNG/SVG exports, and a JSON pairing
 and timestamp audit are included. Each strike uses one fixed translation to its
 receiver's contact hip; no poses are averaged or interpolated. Solid shinai lines
 use the original detected segments, including blur estimates, with no invented
-full weapon length. Matching timestamps are required to differ by at most 10 ms;
+full weapon length. For this longer window, matching timestamps differ by up to 16.7 ms and are
+required to differ by at most 20 ms;
 actual times are printed separately for A and B in each frame panel.
 
 ## Re-create the environment

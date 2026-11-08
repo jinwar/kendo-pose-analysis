@@ -109,7 +109,7 @@ def main():
             people={p['track_id']:p for p in raw[frame]['models']['rtmpose']['people']}
             sequence.append({'frame':frame,'strike':event['strike'],'offset_frames':frame-hit,
                 'relative_time_ms':1000*(raw[frame]['time_seconds']-raw[hit]['time_seconds']),
-                'attacker':people[event['attacker_track_id']],'receiver':people[event['receiver_track_id']]})
+                'attacker':people[event['attacker_track_id']],'receiver':people.get(event['receiver_track_id'])})
         sequences.append(sequence)
     data={'source':config['video'],'sequences':sequences}
     wanted={r['frame']:r for s in data['sequences'] for r in s}
