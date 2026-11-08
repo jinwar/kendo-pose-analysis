@@ -2,9 +2,7 @@
 import json
 from pathlib import Path
 import numpy as np
-from plot_strikes import plt, save
-from matplotlib.colors import ListedColormap, BoundaryNorm
-from matplotlib.cm import ScalarMappable
+from plot_strikes import plt, draw_sequence, time_bar, save
 from average_strikes import draw_body, setup_axis
 
 ROOT=Path(__file__).resolve().parent
@@ -31,44 +29,9 @@ def draw_frame(ax,row,anchor,color,threshold):
         ax.plot(xy[:,0],xy[:,1],color=color,lw=2,ls='-',zorder=4)
 
 
-FRAME_COLORS=plt.get_cmap('turbo')(np.linspace(.06,.94,31))
-
-
-def time_bar(fig,axes):
-    bar=fig.colorbar(ScalarMappable(norm=BoundaryNorm(np.arange(-15.5,16,1),31),
-        cmap=ListedColormap(FRAME_COLORS)),ax=axes,fraction=.025,pad=.025,shrink=.72,
-        ticks=[-15,-12,-9,-6,-3,0,3,6,9,12,15])
-    bar.ax.set_yticklabels(['−500','−400','−300','−200','−100','0 · contact','+100','+200','+300','+400','+500'])
-    bar.set_label('Time relative to contact (ms) · one color per frame')
-    bar.outline.set_visible(False)
-
-
-def draw_sequence(ax,sequence,anchor,threshold):
-    contact=next(r for r in sequence if r['offset_frames']==0)
-    draw_frame(ax,{'attacker':contact['receiver'],'shinai':contact.get('receiver_shinai')},anchor,'#929aa5',threshold)
-    for row,color in zip(sequence,FRAME_COLORS):draw_frame(ax,row,anchor,color,threshold)
-    setup_axis(ax)
-
-
-def extend_sequences(data,config,shinai):
-    raw={r['frame']:r for r in map(json.loads,(ROOT/config['pose_data']).read_text().splitlines())}
-    detections={r['frame']:r for r in shinai['observations']}
-    for sequence,event in zip(data['sequences'],config['strikes']):
-        hit=event['contact_frame'];t0=raw[hit]['time_seconds']
-        for f in range(hit+1,hit+16):
-            people={p['track_id']:p for p in raw[f]['models']['rtmpose']['people']}
-            sequence.append({'strike':event['strike'],'frame':f,'time_seconds':raw[f]['time_seconds'],
-                'offset_frames':f-hit,'relative_time_ms':1000*(raw[f]['time_seconds']-t0),
-                'attacker':people[event['attacker_track_id']],'receiver':people.get(event['receiver_track_id']),
-                'shinai':detections[f]['attacker']})
-    return data
-
-
 def main():
     paths=[ROOT/'outputs/strike_analysis/aligned_poses.json',ROOT/'outputs/strike_analysis_second/aligned_poses.json']
     data=[json.loads(p.read_text()) for p in paths]
-    for i,(events,folder) in enumerate([('strike_events.json','strike_followthrough'),('strike_events_second.json','strike_followthrough_second')]):
-        extend_sequences(data[i],json.loads((ROOT/events).read_text()),json.loads((ROOT/'outputs'/folder/'shinai_detections.json').read_text()))
     if any(len(d['sequences'])!=5 for d in data):raise ValueError('Five strikes per video required')
     OUT.mkdir(parents=True,exist_ok=True)
     audit=[];cards=[]
@@ -77,10 +40,10 @@ def main():
     for k,(a,b) in enumerate(zip(data[0]['sequences'],data[1]['sequences']),1):
         pair=[a,b];anchors=[origin(s) for s in pair]
         offsets=[r['offset_frames'] for r in a]
-        if offsets!=list(range(-15,16)) or offsets!=[r['offset_frames'] for r in b]:
-            raise ValueError('Matching 31-frame windows required')
+        if offsets!=list(range(-15,1)) or offsets!=[r['offset_frames'] for r in b]:
+            raise ValueError('Matching 16-frame windows required')
         mismatch=max(abs(x['relative_time_ms']-y['relative_time_ms']) for x,y in zip(a,b))
-        if mismatch>20:raise ValueError('Matching frame times differ by over 20 ms')
+        if mismatch>10:raise ValueError('Matching frame times differ by over 10 ms')
         audit.append({'pair':k,'source_strikes':[s[-1]['strike'] for s in pair],
                       'source_frames':[[r['frame'] for r in s] for s in pair],
                       'relative_times_ms':[[r['relative_time_ms'] for r in s] for s in pair],
@@ -89,46 +52,42 @@ def main():
         fig,panels=plt.subplots(1,2,figsize=(16,8))
         fig.subplots_adjust(left=.025,right=.9,top=.84,bottom=.14,wspace=.06)
         for j,(sequence,anchor) in enumerate(zip(pair,anchors)):
-            title=f"Person {'AB'[j]} · strike {k} · contact {next(r for r in sequence if r['offset_frames']==0)['time_seconds']:.3f} s"
+            title=f"Person {'AB'[j]} · strike {k} · contact {sequence[-1]['time_seconds']:.3f} s"
             for ax in [panels[j],axes[k-1,j]]:
-                draw_sequence(ax,sequence,anchor,data[j]['threshold'])
+                draw_sequence(ax,sequence,anchor[0],data[j]['threshold'])
                 ax.set_title(title,fontsize=13,loc='left')
         fig.suptitle(f'Strike {k} · individual comparison',fontsize=23,fontweight='bold',x=.025,ha='left')
-        fig.text(.025,.89,'−0.5 to +0.5 s · original poses · matching frame colors · receiver fixed at contact · no averaging',fontsize=12)
+        fig.text(.025,.89,'Original poses · matching frame colors · receiver fixed at contact · no averaging',fontsize=12)
         fig.text(.025,.04,f'Solid shinai: detected shaft segments, not verified tips. Maximum paired timestamp difference: {mismatch:.3f} ms.\nSame pixel scale and receiver-hip reference; no body-size normalization or time warping. Contact ≈ ±1 frame.',fontsize=11,color='#52606d')
         time_bar(fig,panels);save(fig,OUT/f'strike_{k}_comparison')
-        fig,grid=plt.subplots(8,4,figsize=(17,30))
+        fig,grid=plt.subplots(4,4,figsize=(17,17))
         fig.subplots_adjust(left=.025,right=.99,top=.9,bottom=.075,hspace=.25,wspace=.03)
         for i,ax in enumerate(grid.flat):
-            if i>=len(a):
-                ax.axis('off');continue
             for j,(sequence,anchor,color) in enumerate(zip(pair,anchors,COLORS)):
                 draw_frame(ax,sequence[i],anchor,color,data[j]['threshold'])
             setup_axis(ax)
-            missing=['AB'[j] for j,sequence in enumerate(pair) if not (sequence[i].get('shinai') or {}).get('segment_xy')]
-            if missing:ax.text(.02,.02,'Shinai unresolved: '+', '.join(missing),transform=ax.transAxes,fontsize=9,color='#52606d')
             ax.set_title(f"A {a[i]['relative_time_ms']:.0f} / B {b[i]['relative_time_ms']:.0f} ms"+(' · contact' if i==15 else ''),fontsize=11)
         fig.suptitle(f'Strike {k} · original postures frame by frame',fontsize=22,fontweight='bold',x=.025,ha='left')
         fig.text(.025,.94,'Blue: Person A / video 1    Orange: Person B / video 2    ·    Read left to right, then down',fontsize=13)
         fig.text(.025,.025,'Each strike is translated once to its receiver’s contact hip. No averaging, interpolation or body-size correction.\nSolid shinai segments include uncertain blur estimates; endpoints are not verified tips. Manual contact ≈ ±1 frame.',fontsize=11,color='#52606d')
         save(fig,OUT/f'strike_{k}_matched_frames')
-        cards.append(f'<h2>Strike {k} versus strike {k}</h2><p><a href="strike_{k}_comparison.svg">Side-by-side SVG</a> · <a href="strike_{k}_matched_frames.png">31-frame overlay PNG</a> · <a href="strike_{k}_matched_frames.svg">31-frame overlay SVG</a></p><img src="strike_{k}_comparison.png" alt="Strike {k} paired comparison"><details><summary>Show all 31 blue/orange frame overlays</summary><img src="strike_{k}_matched_frames.png" alt="Strike {k} original frames"></details>')
+        cards.append(f'<h2>Strike {k} versus strike {k}</h2><p><a href="strike_{k}_comparison.svg">Side-by-side SVG</a> · <a href="strike_{k}_matched_frames.png">16-frame overlay PNG</a> · <a href="strike_{k}_matched_frames.svg">16-frame overlay SVG</a></p><img src="strike_{k}_comparison.png" alt="Strike {k} paired comparison"><details><summary>Show all 16 blue/orange frame overlays</summary><img src="strike_{k}_matched_frames.png" alt="Strike {k} original frames"></details>')
     overview.suptitle('Strike by strike · Person A (left) and Person B (right)',fontsize=23,fontweight='bold',x=.035,ha='left')
-    overview.text(.035,.96,'Pairs follow recording order · 31 original poses (−0.5 to +0.5 s) per strike · matching time colors · no averaging',fontsize=13)
+    overview.text(.035,.96,'Pairs follow recording order · 16 original poses per strike · matching time colors · no averaging',fontsize=13)
     overview.text(.035,.018,'Solid shinai segments include blur estimates; endpoints are not verified tips. Gray receiver: fixed contact pose.\nSame pixel scale and receiver-hip alignment; no body-size or perspective correction. Contact ≈ ±1 frame.',fontsize=12,color='#52606d')
     time_bar(overview,axes);save(overview,OUT/'five_strike_pairs')
     (OUT/'comparison.json').write_text(json.dumps({'inputs':[str(p.relative_to(ROOT)) for p in paths],
         'pairing':'Chronological: strike 1 vs 1 through strike 5 vs 5; not similarity-selected.',
         'method':'Original per-frame poses and detected shinai segments. Fixed translation by each receiver contact hip; no averaging, scaling or interpolation.',
-        'post_contact_frames':15,'extended_sequences':data,'pairs':audit},indent=2))
+        'pairs':audit},indent=2))
     (OUT/'index.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><title>Strike-by-strike comparison</title>
 <style>body{font:16px system-ui;max-width:1500px;margin:32px auto;padding:20px;color:#243344}img{width:100%}p{line-height:1.6}summary{cursor:pointer}</style>
-<h1>Strike-by-strike comparison</h1><p>Person A: attacker in video 1 (20261108_120241.mp4). Person B: attacker in video 2 (20261108_120335.mp4). Pairs follow recording order: 1 versus 1 through 5 versus 5. Each window runs from −0.5 to +0.5 seconds around contact (31 frames). These are the original observations, with no averaging.</p>
-<p>Each pair shares pixel scale, contact-frame offset and receiver-hip reference. All shinai lines are solid, including uncertain blur estimates. Segments show detected support, not full weapon length or verified tips. Body size and perspective are not corrected. Unresolved shinai estimates are omitted and labeled. Fifteen post-contact frames span approximately 500–508 ms because of source timing. Overlap between the people can reduce pose reliability during follow-through; the gray receiver stays at the contact pose. Matching timestamps differ by up to 16.7 ms (less than one nominal frame); frames are paired by their offset from contact; actual times are shown in each frame panel. Manual contact uncertainty is approximately one frame.</p>
+<h1>Strike-by-strike comparison</h1><p>Person A: attacker in video 1 (20261108_120241.mp4). Person B: attacker in video 2 (20261108_120335.mp4). Pairs follow recording order: 1 versus 1 through 5 versus 5. These are the original observations, with no averaging.</p>
+<p>Each pair shares pixel scale, contact-frame offset and receiver-hip reference. All shinai lines are solid, including uncertain blur estimates. Segments show detected support, not full weapon length or verified tips. Body size and perspective are not corrected. Matching timestamps differ by less than 10 ms; actual times are shown in each frame panel. Manual contact uncertainty is approximately one frame.</p>
 <p><a href="five_strike_pairs.png">Five-row overview PNG</a> · <a href="five_strike_pairs.svg">Overview SVG</a> · <a href="comparison.json">Pairing and timing audit</a></p>'''+''.join(cards)+'</html>')
     from results_index import build_index
     build_index(ROOT/'outputs')
-    print('Saved five individual comparisons and 155 paired-frame panels:',OUT/'index.html')
+    print('Saved five individual comparisons and 80 paired-frame panels:',OUT/'index.html')
     print('Maximum timestamp difference:',max(p['max_time_difference_ms'] for p in audit))
 
 
