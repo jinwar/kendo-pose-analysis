@@ -1,0 +1,15 @@
+{
+  "video": "videos/20261108_120241.mp4",
+  "pose_data": "outputs/20261108_120241_full/poses.jsonl",
+  "model": "rtmpose",
+  "pre_hit_frames": 15,
+  "keypoint_threshold": 0.3,
+  "contact_method": "Manual visual review of consecutive source frames: first apparent shinai/head contact. Approximate uncertainty +/- 1 frame; not automatic impact detection or verified ippon.",
+  "strikes": [
+    {"strike": 1, "contact_frame": 120, "attacker_track_id": 2, "receiver_track_id": 1},
+    {"strike": 2, "contact_frame": 545, "attacker_track_id": 3, "receiver_track_id": 1},
+    {"strike": 3, "contact_frame": 810, "attacker_track_id": 1, "receiver_track_id": 4},
+    {"strike": 4, "contact_frame": 1087, "attacker_track_id": 4, "receiver_track_id": 6},
+    {"strike": 5, "contact_frame": 1390, "attacker_track_id": 6, "receiver_track_id": 8}
+  ]
+}

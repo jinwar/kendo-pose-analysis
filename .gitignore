@@ -1,0 +1,9 @@
+.venv/
+.cache/
+__pycache__/
+.DS_Store
+videos/
+models/*.pt
+models/*.onnx
+models/*.download
+outputs/
