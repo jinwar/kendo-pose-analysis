@@ -40,7 +40,7 @@ through the contact reference is shown (~0.5 s, 16 postures per strike). The
 attacker’s consecutive postures are overlaid in the same plot, with one color
 per frame (blue early, red at contact). The receiver is drawn once in gray
 using the contact-frame posture. Thicker lines show detected shinai shaft
-segments in the corresponding frame color. Dashed lines mark uncertain
+segments in the corresponding frame color. All lines are solid, including uncertain
 motion-blur direction estimates. The receiver's visible contact-frame shinai
 segment is drawn once in gray.
 
@@ -69,7 +69,7 @@ in a larger view, with a discrete time colorbar. Contact-review image sheets are
 All 80 frames have a saved estimate: 60 use visible line segments selected with
 wrist proximity, shaft direction, and bamboo-color filtering. For the other 20,
 the detector searches for the axis of darkening relative to the first pre-strike
-frame. Those results are drawn dashed because blur represents motion during an
+frame. Those results also use solid lines, but blur represents motion during an
 exposure, not a single instantaneous position. No manually traced segments or
 temporal interpolation are used. The heuristic is tailored to this stationary
 camera and left-to-right drill; it is not a general trained shinai detector.
@@ -224,12 +224,37 @@ conservatively downweight distant estimates. The exact weights are saved in JSON
 
 Shinai orientations use an axial circular mean, with blurred detections weighted
 at one quarter of clear detections (a heuristic). Drawn segments have a fixed
-schematic length, not measured tips. Dashed means all contributing estimates were
-blurred. Joint ellipses show weighted sample covariance with one-SD axes; shinai
+schematic length, not measured tips. All shinai lines are solid, including blurred estimates; their lower weights and
+method labels remain in the exported data. Joint ellipses show weighted sample covariance with one-SD axes; shinai
 fans show angular RMS spread. These describe variation, not confidence intervals.
 Five repetitions cannot separate genuine technique variation from tracking error,
 and manual contact uncertainty of approximately one frame is not propagated.
 Averaged skeletons are not constrained to preserve anatomical bone lengths.
+
+## Second video and two-person comparison
+
+The reviewed contact frames for video 2 are in `strike_events_second.json`.
+Person A means the attacker in video 1; Person B means the attacker in video 2.
+Both use five strikes and the same 16-frame pre-contact window.
+
+```bash
+.venv/bin/python detect_shinai.py --events strike_events_second.json --output outputs/strike_analysis_second
+.venv/bin/python plot_strikes.py --events strike_events_second.json --output outputs/strike_analysis_second
+.venv/bin/python average_strikes.py --input outputs/strike_analysis_second/aligned_poses.json --output outputs/average_strike_second --max-time-span-ms 10
+.venv/bin/python average_strikes.py
+.venv/bin/python compare_average_strikes.py
+```
+
+Open `outputs/average_comparison/index.html` for side-by-side time-colored means
+and 16 matching mean-posture overlays (blue A, orange B). Individual results and
+variation plots are linked from that page. All shinai lines now render solid.
+
+Video 2 has an approximately 8.3 ms timestamp difference at some matching frame
+offsets, within the explicit 10 ms tolerance above; the default remains 5 ms.
+Actual mean times and maximum spread are exported. No frames are interpolated or
+phase-warped. The figures share pixel scale and receiver-contact hip origin, but
+are not corrected for body size or perspective. Do not interpret image distances
+as physical distances or differences as evidence of technique quality.
 
 ## Re-create the environment
 

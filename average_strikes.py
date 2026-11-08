@@ -4,6 +4,7 @@ No phase warping, scale normalization, smoothing, or invented shinai tips.
 Spread measures between-strike variation plus tracking error, not a confidence
 interval for the person's true movement. Image units are pixels, not metres.
 """
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -99,7 +100,7 @@ def draw_shinai(ax,q,color,spread=False):
     if not q:return
     theta=q['angle_radians'];anchor=np.array(q['anchor_xy']);u=np.array([np.cos(theta),np.sin(theta)])
     xy=anchor+np.array([60,360])[:,None]*u
-    ax.plot(xy[:,0],xy[:,1],color=color,lw=2,ls='--' if q['all_blurred'] else '-',zorder=4)
+    ax.plot(xy[:,0],xy[:,1],color=color,lw=2,ls='-',zorder=4)
     if spread:
         delta=np.deg2rad(q['angular_rms_spread_degrees'])
         a=np.linspace(theta-delta,theta+delta,25)
@@ -112,14 +113,19 @@ def setup_axis(ax):
 
 
 def main():
-    source=ROOT/'outputs/strike_analysis/aligned_poses.json'
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--input',type=Path,default=ROOT/'outputs/strike_analysis/aligned_poses.json')
+    parser.add_argument('--output',type=Path,default=OUT)
+    parser.add_argument('--max-time-span-ms',type=float,default=5,help='Maximum permitted within-offset timestamp span; stored in output')
+    args=parser.parse_args();source=args.input.resolve();out=args.output
+    out.mkdir(parents=True,exist_ok=True)
     data=json.loads(source.read_text());sequences=data['sequences']
     if len(sequences)!=5:raise ValueError('This analysis expects the five reviewed strikes')
     offsets=[[r['offset_frames'] for r in s] for s in sequences]
     if not all(o==offsets[0] for o in offsets):raise ValueError('Frame offsets differ between strikes')
     times=np.array([[r['relative_time_ms'] for r in s] for s in sequences])
     timing_span=float(np.ptp(times,axis=0).max())
-    if timing_span>5:raise ValueError('Frame timing differs by >5 ms; explicit resampling would be needed')
+    if timing_span>args.max_time_span_ms:raise ValueError(f'Frame timing span {timing_span:.3f} ms exceeds permitted {args.max_time_span_ms} ms')
     translations=[]
     for s in sequences:
         p=s[-1]['receiver'];hip=np.array(p['keypoints_xy'])[[11,12]]
@@ -143,9 +149,9 @@ def main():
         averages.append({'offset_frames':offset,'relative_time_ms':float(times[:,column].mean()),
             'source_frames':[r['frame'] for r in observations],'joints':joints,
             'shinai':average_shinai(observations,translations)})
-    OUT.mkdir(parents=True,exist_ok=True)
+    out.mkdir(parents=True,exist_ok=True)
     metadata={'source_video':data['source'],'input':str(source.relative_to(ROOT)),'strikes':5,
-        'translations_xy':translations.tolist(),'max_time_alignment_span_ms':timing_span,
+        'translations_xy':translations.tolist(),'max_time_alignment_span_ms':timing_span,'permitted_time_span_ms':args.max_time_span_ms,
         'coordinate_system':'Image pixels relative to receiver contact-frame hip midpoint (0,0); y down.',
         'method':'Confidence-weighted joint mean, confidence>=0.3, clipped weights<=1, radial Huber downweight beyond max(75px, median distance + 3 scaled MAD). At least 3 observations required.',
         'spread':'Weighted sample covariance ellipses with one-SD semi-axes; descriptive scatter, NOT confidence intervals. Includes real variation and detector error.',
@@ -156,8 +162,8 @@ def main():
             'Averaging cannot remove shared pose-estimation bias under armor; means may shorten apparent limbs.',
             'Shinai guides have fixed display length: no tip position, full weapon length, or tip speed is inferred.'],
         'receiver_contact_mean':receiver,'frames':averages}
-    (OUT/'average_strike.json').write_text(json.dumps(metadata,indent=2,allow_nan=False))
-    with (OUT/'average_joints.csv').open('w',newline='') as f:
+    (out/'average_strike.json').write_text(json.dumps(metadata,indent=2,allow_nan=False))
+    with (out/'average_joints.csv').open('w',newline='') as f:
         writer=csv.writer(f);writer.writerow(['offset_frames','time_ms','joint_index','x_px','y_px','n','effective_n','sd_x_px','sd_y_px','cov_xy_px2','downweighted_strikes_1based'])
         for row in averages:
             for j,p in enumerate(row['joints']):
@@ -171,8 +177,8 @@ def main():
     setup_axis(ax);time_bar(fig,ax)
     fig.suptitle('Typical strike · average of five repetitions',x=.04,y=.98,ha='left',fontsize=19,fontweight='bold')
     fig.text(.04,.9,'Contact-aligned, confidence-weighted mean · 16 frames from −0.5 s to contact\nGray: average receiver at contact. Colors: attacker and shinai orientation.',fontsize=11,color='#52606d')
-    fig.text(.04,.035,'Shinai lines are fixed-length orientation guides, not measured tips. Dashed = all five inputs blurred.\nNo phase warping or temporal smoothing. Five-strike average includes tracking errors; contact ≈ ±1 frame.',fontsize=10,color='#52606d')
-    save(fig,OUT/'average_strike')
+    fig.text(.04,.035,'Shinai lines are fixed-length orientation guides, not measured tips. All shinai lines are solid; blurred inputs remain downweighted.\nNo phase warping or temporal smoothing. Five-strike average includes tracking errors; contact ≈ ±1 frame.',fontsize=10,color='#52606d')
+    save(fig,out/'average_strike')
     # Every frame separately, with descriptive joint scatter and orientation spread.
     fig,axes=plt.subplots(4,4,figsize=(17,17));fig.subplots_adjust(left=.025,right=.99,top=.9,bottom=.075,hspace=.25,wspace=.03)
     for i,(ax,row) in enumerate(zip(axes.flat,averages)):
@@ -182,8 +188,8 @@ def main():
         setup_axis(ax);ax.set_title(f"{row['relative_time_ms']:.0f} ms"+(' · contact' if i==15 else ''),fontsize=12)
     fig.suptitle('Average strike · frame by frame',x=.025,y=.98,ha='left',fontsize=23,fontweight='bold')
     fig.text(.025,.94,'Read left to right, then down. Shading shows between-strike scatter (one-SD axes), not measurement confidence.',fontsize=12,color='#52606d')
-    fig.text(.025,.025,'Five repetitions · low-confidence joints excluded; unusually distant estimates downweighted. No time warping.\nShinai fan: weighted angular RMS spread. Shaft guide length is schematic; dashed guides use only blurred inputs.\nVariation includes genuine strike differences, pose errors, and alignment errors. Contact uncertainty ≈ ±1 frame is not propagated.',fontsize=11,color='#52606d')
-    save(fig,OUT/'average_frames_spread')
+    fig.text(.025,.025,'Five repetitions · low-confidence joints excluded; unusually distant estimates downweighted. No time warping.\nShinai fan: weighted angular RMS spread. Shaft guide length is schematic; all guides use solid lines.\nVariation includes genuine strike differences, pose errors, and alignment errors. Contact uncertainty ≈ ±1 frame is not propagated.',fontsize=11,color='#52606d')
+    save(fig,out/'average_frames_spread')
     # Direct audit: original translated poses vs average at six shared instants.
     fig,axes=plt.subplots(2,3,figsize=(14,10));fig.subplots_adjust(left=.025,right=.99,top=.87,bottom=.07,hspace=.2)
     for ax,i in zip(axes.flat,[0,3,6,9,12,15]):
@@ -197,23 +203,29 @@ def main():
         setup_axis(ax);ax.set_title(f"{averages[i]['relative_time_ms']:.0f} ms",fontsize=12)
     fig.suptitle('Five observed poses and their average',x=.025,y=.98,ha='left',fontsize=21,fontweight='bold')
     fig.text(.025,.925,'Light gray: each translated strike · Blue: confidence-weighted mean · Dark gray: fixed average receiver',fontsize=11,color='#52606d')
-    save(fig,OUT/'average_vs_observations')
-    (OUT/'index.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><title>Average kendo strike</title>
+    save(fig,out/'average_vs_observations')
+    (out/'index.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><title>Average kendo strike</title>
 <style>body{font:16px system-ui;max-width:1300px;margin:32px auto;padding:20px;color:#243344}img{max-width:100%;margin:20px 0}p{line-height:1.6}a{color:#1379bb}</style>
 <h1>Typical strike — average of five repetitions</h1>
 <p>Contact-aligned average of the same five strikes. Each strike is translated once using the receiver's hip at contact; timing, pixel scale, and approach are preserved. Low-confidence joints are excluded, and unusually distant estimates receive reduced weight. No phase warping or temporal smoothing.</p>
-<p>Shinai orientation and line position are averaged with blurred estimates weighted at ¼ of clear estimates. Drawn shaft lengths are schematic, not measurements of weapon length or tip location. Dashed guides indicate that all five inputs were blurred.</p>
+<p>Shinai orientation and line position are averaged with blurred estimates weighted at ¼ of clear estimates. Drawn shaft lengths are schematic, not measurements of weapon length or tip location. All guides are solid; detection methods and weights remain available in the JSON.</p>
 <a href="average_strike.png">Overview PNG</a> · <a href="average_strike.svg">Overview SVG</a> · <a href="average_joints.csv">Joint statistics CSV</a> · <a href="average_strike.json">Full method and data</a>
 <img src="average_strike.png" alt="Average strike with color coded postures">
 <h2>Every averaged frame and its variation</h2><p>Ellipses show one-SD covariance axes across the five estimates; shaded fans show angular RMS spread. These are descriptive variation, not confidence intervals. Genuine strike differences and detector errors are mixed together. Manual contact timing uncertainty of approximately one frame is not included.</p>
 <a href="average_frames_spread.svg">Frame-by-frame SVG</a><img src="average_frames_spread.png" alt="Sixteen average poses with variation">
 <h2>Check the average against the observations</h2><img src="average_vs_observations.png" alt="Individual poses and weighted average">
 <p>This represents these five recorded strikes, not a definitive technique model. <a href="../strike_analysis/index.html">Return to the five individual strikes</a>.</p></html>''')
+    page=out/'index.html'
+    import os
+    individual=os.path.relpath(source.parent/'index.html',out)
+    page.write_text(page.read_text().replace('../strike_analysis/index.html',individual))
     counts=[p['n'] for r in averages for p in r['joints'] if p]
     downweighted=sum(len(p['downweighted_strike_indices']) for r in averages for p in r['joints'] if p)
     print(f'Saved {len(averages)} mean poses; contributors per joint {min(counts)}–{max(counts)}; {downweighted} joint observations downweighted.')
     print(f'Max matching-frame time span: {timing_span:.6f} ms')
-    print('Output:',OUT/'index.html')
+    page=out/'index.html'
+    page.write_text(page.read_text().replace('<h1>',f'<p>Maximum timestamp spread at matching frame offsets: {timing_span:.3f} ms. Original frames retained without resampling.</p><h1>',1))
+    print('Output:',out/'index.html')
     from results_index import build_index
     build_index(ROOT/'outputs')
 

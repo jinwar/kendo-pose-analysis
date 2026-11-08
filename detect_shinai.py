@@ -5,6 +5,7 @@ Blurred swings: darkening against the first pre-strike frame, searched over rays
 near the hands. Those are exposure-blur axes, NOT instantaneous tip measurements.
 No temporal interpolation. All endpoints describe visible support, not proven tips.
 """
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -89,15 +90,16 @@ def blurred_axis(frame,reference,grip):
 def draw_segment(image,result,color):
     if not result['segment_xy']:return
     a,b=np.array(result['segment_xy'])
-    if result['method']=='blur_axis_estimate':
-        for t in np.arange(0,1,.07):
-            p=a+t*(b-a);q=a+min(t+.04,1)*(b-a)
-            cv2.line(image,tuple(p.astype(int)),tuple(q.astype(int)),color,3,cv2.LINE_AA)
-    else:cv2.line(image,tuple(a.astype(int)),tuple(b.astype(int)),color,3,cv2.LINE_AA)
+    cv2.line(image,tuple(a.astype(int)),tuple(b.astype(int)),color,3,cv2.LINE_AA)
 
 
 def main():
-    config=json.loads((ROOT/'strike_events.json').read_text())
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--events',type=Path,default=ROOT/'strike_events.json')
+    parser.add_argument('--output',type=Path,default=OUT)
+    args=parser.parse_args();out=args.output
+    out.mkdir(parents=True,exist_ok=True)
+    config=json.loads(args.events.read_text())
     raw={r['frame']:r for r in map(json.loads,(ROOT/config['pose_data']).read_text().splitlines())}
     sequences=[]
     for event in config['strikes']:
@@ -110,7 +112,7 @@ def main():
         sequences.append(sequence)
     data={'source':config['video'],'sequences':sequences}
     wanted={r['frame']:r for s in data['sequences'] for r in s}
-    review=OUT/'shinai_review';review.mkdir(exist_ok=True)
+    review=out/'shinai_review';review.mkdir(exist_ok=True)
     cap=cv2.VideoCapture(str(ROOT/data['source']));lsd=cv2.createLineSegmentDetector(0)
     observations=[];thumbnails={};frame_index=0
     # Import only color values; the plotting module does not run inference.
@@ -154,8 +156,8 @@ def main():
                       'Quality scores are heuristic, not probabilities. No ground-truth accuracy measurement.',
                       'No interpolation. Each frame is independently estimated using its image and wrist positions.'],
         'observations':observations}
-    (OUT/'shinai_detections.json').write_text(json.dumps(result,indent=2))
-    with (OUT/'shinai_detections.csv').open('w',newline='') as f:
+    (out/'shinai_detections.json').write_text(json.dumps(result,indent=2))
+    with (out/'shinai_detections.csv').open('w',newline='') as f:
         writer=csv.writer(f);writer.writerow(['strike','frame','relative_time_ms','method','x1','y1','x2','y2','angle_degrees','quality_score'])
         for r in observations:
             q=r['attacker'];points=q['segment_xy'] or [[None,None],[None,None]]

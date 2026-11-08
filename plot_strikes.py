@@ -49,7 +49,7 @@ def shinai_segment(ax,detection,origin,y_shift,color):
     xy=np.array(detection['segment_xy'],dtype=float)
     xy[:,0]+=ANCHOR-origin
     xy[:,1]+=y_shift
-    style='--' if detection['method']=='blur_axis_estimate' else '-'
+    style='-'
     ax.plot(xy[:,0],xy[:,1],color=color,lw=2.1,ls=style,solid_capstyle='round',zorder=4)
 
 
@@ -130,7 +130,7 @@ def main():
     fig.text(.09,.952,'Left attacker: 16 consecutive frames, −0.5 s to contact.\nRight receiver: contact-frame posture, drawn once in gray.',fontsize=10,color='#52606d',linespacing=1.7,va='top')
     time_bar(fig,axes)
     for ax in axes:ax.set_anchor('W')
-    note=('Thicker lines: shinai segments · dashed: uncertain blur-axis estimates\nEndpoints are visible support, not measured tips. Contact ≈ ±1 frame.' if shinai_data else 'YOLOX + RTMPose · same scale · fixed receiver hip reference\nNo smoothing or interpolation. Visual contact ≈ ±1 frame; hidden joints are estimates.')
+    note=('Thicker solid lines: shinai segments, including uncertain blur estimates\nEndpoints are visible support, not measured tips. Contact ≈ ±1 frame.' if shinai_data else 'YOLOX + RTMPose · same scale · fixed receiver hip reference\nNo smoothing or interpolation. Visual contact ≈ ±1 frame; hidden joints are estimates.')
     fig.text(.09,.02,note,fontsize=9,color='#52606d')
     save(fig,out/'five_strikes_aligned')
     for event,sequence,origin in zip(audit,sequences,origins):
@@ -159,12 +159,14 @@ def main():
                         for j,(xy,score) in enumerate(zip(p['keypoints_xy'],p['keypoint_scores'])):
                             writer.writerow([row['strike'],row['frame'],row['offset_frames'],row['relative_time_ms'],role,p['track_id'],j,*xy,score])
     cards=''.join(f'<h2>Strike {i}</h2><a href="strike_{i}_frames.svg">Vector figure</a> · <a href="shinai_review/strike_{i}_all_frames.jpg">Check detections against all 16 video frames</a><img src="strike_{i}_frames.png" alt="Strike {i} postures and shinai">' for i in range(1,6))
-    shinai_note=(f"<p><strong>Shinai prototype:</strong> {shinai_data['counts'].get('edge_supported',0)} frames use visible edge segments (solid); {shinai_data['counts'].get('blur_axis_estimate',0)} use uncertain motion-blur axes (dashed)." ' Color matches the posture from the same frame. These are image-supported shaft segments, not measured shinai tips or full lengths. The fixed receiver’s contact-frame shinai is gray. No temporal interpolation.</p><p><a href="shinai_detections.csv">Shinai CSV</a> · <a href="shinai_detections.json">Methods and estimates JSON</a></p>' if shinai_data else '')
+    shinai_note=(f"<p><strong>Shinai prototype:</strong> {shinai_data['counts'].get('edge_supported',0)} frames use visible edge segments (solid); {shinai_data['counts'].get('blur_axis_estimate',0)} use uncertain motion-blur axes (also solid)." ' Color matches the posture from the same frame. These are image-supported shaft segments, not measured shinai tips or full lengths. The fixed receiver’s contact-frame shinai is gray. No temporal interpolation.</p><p><a href="shinai_detections.csv">Shinai CSV</a> · <a href="shinai_detections.json">Methods and estimates JSON</a></p>' if shinai_data else '')
     (out/'index.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><title>Five aligned strikes</title>
 <style>body{font:16px system-ui;max-width:1800px;margin:32px auto;padding:20px;color:#243344}img{width:100%;margin:20px 0}a{color:#1379bb}p{line-height:1.6}</style>
-<h1>Five strikes aligned to contact</h1><p>20261108_120241.mp4 · YOLOX + RTMPose only. Each overview row is one strike, with every consecutive frame from −15 to 0. Contact is visually selected (approximately ±1 frame), not automatically detected. Attacker postures are overlaid in one shared coordinate system, with a different color for every frame. The receiver is drawn once in gray at the contact-frame position. The colorbar shows time before contact.</p>
+<h1>Five strikes aligned to contact</h1><p>SOURCE_VIDEO · YOLOX + RTMPose only. Each overview row is one strike, with every consecutive frame from −15 to 0. Contact is visually selected (approximately ±1 frame), not automatically detected. Attacker postures are overlaid in one shared coordinate system, with a different color for every frame. The receiver is drawn once in gray at the contact-frame position. The colorbar shows time before contact.</p>
 <a href="five_strikes_aligned.png">Full-resolution overview PNG</a> · <a href="five_strikes_aligned.svg">Overview SVG</a> · <a href="aligned_keypoints.csv">Keypoints CSV</a>
 <img src="five_strikes_aligned.png" alt="Five rows of aligned pre-contact skeletons">'''+shinai_note+cards+'</html>')
+    page=out/'index.html'
+    page.write_text(page.read_text().replace('SOURCE_VIDEO',Path(config['video']).name))
     assert len(sequences)==5 and all(len(s)==16 for s in sequences)
     assert all(s[-1]['relative_time_ms']==0 and all(a['frame']+1==b['frame'] for a,b in zip(s,s[1:])) for s in sequences)
     print(json.dumps(audit,indent=2));print('Figures saved:',out)

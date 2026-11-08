@@ -20,6 +20,9 @@ def build_index(root):
                    if (root/'strike_analysis/index.html').exists() else '')
     if (root/'average_strike/index.html').exists():
         strike_link += '<article><h2><a href="average_strike/index.html">Typical strike: average of five repetitions</a></h2><p>Contact-aligned mean poses, shinai orientation, and between-strike variation.</p></article>'
+    for folder,label in [('strike_analysis_second','Video 2: five strikes'),('average_strike_second','Video 2: average strike'),('average_comparison','Compare the two people’s average strikes')]:
+        if (root/folder/'index.html').exists():
+            strike_link += f'<article><h2><a href="{folder}/index.html">{label}</a></h2></article>'
     text='''<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Kendo video analysis</title>
 <style>body{font:16px system-ui;background:#101923;color:#e8eff5;max-width:1200px;margin:48px auto;padding:0 24px}
